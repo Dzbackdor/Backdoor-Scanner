@@ -3,6 +3,7 @@ putenv("TZ=Asia/Tokyo");
 error_reporting(0);
 ini_set('display_errors', 0);
 set_time_limit(300);
+ini_set('memory_limit', '1024M');
 ?>
 <head>
 <title>Backdoor Scanner Refixed By Dzone</title>
@@ -22,27 +23,48 @@ function checkAllFunctions() {
 }
 
 function filterTable() {
-    var filterType = document.getElementById('type_filter').value;
-    var filterOwner = document.getElementById('owner_filter').value;
+
+    var filterType = document.getElementById('type_filter').value.toLowerCase().trim();
+    var filterOwner = document.getElementById('owner_filter').value.toLowerCase().trim();
+
     var rows = document.getElementById('result_table').getElementsByTagName('tr');
-    
-    for(var i=2; i<rows.length; i++) { // Mulai dari baris ke-3 (skip header)
-        var typeCell = rows[i].getElementsByTagName('td')[1]; // Kolom Type
-        var ownerCell = rows[i].getElementsByTagName('td')[4]; // Kolom Owner:Group
-        
-        if(typeCell && ownerCell) {
-            var typeText = typeCell.textContent || typeCell.innerText;
-            var ownerText = ownerCell.textContent || ownerCell.innerText;
-            
-            var typeMatch = (filterType == 'all' || typeText.indexOf(filterType) !== -1);
-            var ownerMatch = (filterOwner == 'all' || ownerText.indexOf(filterOwner) !== -1);
-            
-            if(typeMatch && ownerMatch) {
-                rows[i].style.display = '';
-            } else {
-                rows[i].style.display = 'none';
-            }
+    var visibleCount = 0;
+
+    for(var i=1; i<rows.length-1; i++) {
+
+        var cols = rows[i].getElementsByTagName('td');
+        if(cols.length < 7) continue;
+
+        var typeText = cols[1].innerText.toLowerCase().replace(/\s+/g,' ').trim();
+        var ownerText = cols[4].innerText.toLowerCase().replace(/\s+/g,' ').trim();
+
+        var typeMatch = (filterType === "all") || typeText.includes(filterType);
+        var ownerMatch = (filterOwner === "all") || ownerText.includes(filterOwner);
+
+        if(typeMatch && ownerMatch){
+            rows[i].style.display="";
+            visibleCount++;
+        }else{
+            rows[i].style.display="none";
         }
+    }
+
+    updateTableCounts(visibleCount);
+}
+
+function updateTableCounts(visibleCount) {
+    var rows = document.getElementById('result_table').getElementsByTagName('tr');
+    if(rows.length < 2) return;
+    
+    var totalRow = rows[rows.length-1];
+    if(!totalRow) return;
+    
+    var totalFiles = rows.length - 3; // Kurangi 2 baris header + 1 baris footer
+    
+    if(totalRow.cells && totalRow.cells[0] && totalRow.cells[0].colSpan == 7) {
+        totalRow.cells[0].innerHTML = '<center><b>Total files scanned: ' + totalFiles + 
+                                       ' | Suspicious files found: ' + visibleCount + 
+                                       ' | Hidden: ' + (totalFiles - visibleCount) + '</b></center>';
     }
 }
 
@@ -56,38 +78,25 @@ function resetFilters() {
 function removeFileRow(filePath) {
     var rows = document.getElementById('result_table').getElementsByTagName('tr');
     
-    for(var i=2; i<rows.length; i++) { // Mulai dari baris ke-3 (skip header)
-        var linkCell = rows[i].getElementsByTagName('td')[2]; // Kolom File Location
+    for(var i=2; i<rows.length; i++) {
+        var linkCell = rows[i].getElementsByTagName('td')[2];
         if(linkCell) {
             var link = linkCell.getElementsByTagName('a')[0];
             if(link && link.href.indexOf(encodeURIComponent(filePath)) !== -1) {
-                rows[i].style.display = 'none'; // Sembunyikan dulu
-                // Atau bisa juga dihapus: rows[i].parentNode.removeChild(rows[i]);
+                rows[i].parentNode.removeChild(rows[i]);
                 break;
             }
         }
     }
     
-    // Update total files dan suspicious files count
-    updateCounts();
-}
-
-// Fungsi untuk update counter setelah delete
-function updateCounts() {
-    var rows = document.getElementById('result_table').getElementsByTagName('tr');
+    // Hitung ulang setelah menghapus
     var visibleCount = 0;
-    
-    for(var i=2; i<rows.length; i++) {
+    for(var i=2; i<rows.length-1; i++) {
         if(rows[i].style.display !== 'none') {
             visibleCount++;
         }
     }
-    
-    // Update baris total
-    var totalRow = rows[rows.length-1];
-    if(totalRow && totalRow.cells[0].colSpan == 7) {
-        totalRow.cells[0].innerHTML = '<center>Total files scanned: ' + (rows.length-3) + ' | Suspicious files found: ' + visibleCount + '</center>';
-    }
+    updateTableCounts(visibleCount);
 }
 //-->
 </script>
@@ -98,7 +107,7 @@ body {
   background-color: #222;
   color: #fff;
   margin: 0;
-  padding: 0;
+  padding: 20px;
 }
 
 .container {
@@ -259,26 +268,49 @@ td {
 }
 
 /* Perbaikan untuk header tabel */
-th, td.header-cell {
-   text-align: center !important;
-   vertical-align: middle !important;
-}
-
-/* Pastikan semua kolom header rata tengah */
 #result_table tr:first-child td {
    text-align: center !important;
    vertical-align: middle !important;
-}
-
-/* Untuk kolom File Location yang ada linknya */
-td.location-cell {
-   text-align: left !important;
-   vertical-align: middle !important;
+   font-weight: bold;
+   background-color: #4CAF50;
+   color: white;
 }
 
 /* Untuk konten di dalam sel */
 td {
    vertical-align: middle;
+}
+
+.scan-info {
+   text-align: center;
+   margin: 20px auto;
+   padding: 15px;
+   background-color: #333;
+   border-radius: 8px;
+   max-width: 95%;
+   color: #47b2e4;
+   font-size: 14px;
+   border: 1px solid #47b2e4;
+}
+
+.file-list {
+   max-height: 200px;
+   overflow-y: auto;
+   background: #000;
+   padding: 10px;
+   margin-top: 10px;
+}
+
+.warning-box {
+   background: #332200;
+   padding: 15px;
+   margin: 15px auto;
+   color: #ffaa00;
+   border: 1px solid #ffaa00;
+   border-radius: 5px;
+   font-family: monospace;
+   max-width: 95%;
+   text-align: left;
 }
 -->
 </style>
@@ -369,7 +401,7 @@ function getFileOwner($file) {
     return $owner . ':' . $group;
 }
 
-// Fungsi scan file
+// Fungsi scan file - VERSI DIPERBAIKI DENGAN HANDLE FILE BESAR
 function scanFiles($dir, $recursive = true, $ext_filter = 'php') {
     $files = array();
     
@@ -381,10 +413,8 @@ function scanFiles($dir, $recursive = true, $ext_filter = 'php') {
             
             $fullpath = $dir . "/" . $file;
             
-            if(is_dir($fullpath) && $recursive) {
-                $sub_files = scanFiles($fullpath, $recursive, $ext_filter);
-                $files = array_merge($files, $sub_files);
-            } elseif(is_file($fullpath)) {
+            // CEK FILE DAHULU sebelum cek directory
+            if(is_file($fullpath)) {
                 // Filter berdasarkan ekstensi
                 $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
                 
@@ -399,6 +429,12 @@ function scanFiles($dir, $recursive = true, $ext_filter = 'php') {
                 } elseif($ext_filter == 'txt' && $ext == 'txt') {
                     $files[] = $fullpath;
                 }
+            }
+            
+            // CEK DIRECTORY untuk rekursif
+            if(is_dir($fullpath) && $recursive) {
+                $sub_files = scanFiles($fullpath, $recursive, $ext_filter);
+                $files = array_merge($files, $sub_files);
             }
         }
         @closedir($dh);
@@ -415,6 +451,9 @@ function getUniqueOwners($fileList, $selected_functions, $custom_keyword) {
         foreach($fileList as $file) {
             // Cek apakah file masih ada
             if(!file_exists($file)) continue;
+            
+            // Skip file besar untuk efisiensi
+            if(@filesize($file) > 5 * 1024 * 1024) continue;
             
             $ops = @file_get_contents($file);
             if($ops !== false) {
@@ -468,12 +507,11 @@ function getUniqueOwners($fileList, $selected_functions, $custom_keyword) {
 
 // Main logic
 if(isset($_REQUEST['edit']) && $_REQUEST['edit'] == 'file') {
-    // Edit file section - TANPA REFRESH, LANGSUNG CLOSE
+    // Edit file section
     if(isset($_POST['yes'])) {
         $filename = isset($_GET['file']) ? $_GET['file'] : '';
         if(!empty($filename)) {
             @unlink($filename);
-            // Kirim sinyal ke parent window untuk hapus baris, lalu tutup
             echo "<html><body><script>
                 if(window.opener && !window.opener.closed) {
                     window.opener.removeFileRow('".addslashes($filename)."');
@@ -565,36 +603,57 @@ if(isset($_REQUEST['edit']) && $_REQUEST['edit'] == 'file') {
     $recursive = isset($_POST['recursive']) ? true : false;
     $ext_filter = isset($_POST['ext_filter']) ? $_POST['ext_filter'] : 'php';
     
+    // Tampilkan informasi scan dengan DIV
     ?>
-    <center>
-        <tr>
-            <td colspan="7" align="center" class="me">
-                <b style="color: #47b2e4;">Scanning: <?php echo htmlspecialchars($target); ?><br>
-                Recursive: <?php echo ($recursive ? "Yes (termasuk subfolder)" : "No (hanya folder ini)"); ?> | 
-                Extension: <?php echo strtoupper($ext_filter); ?></b>
-            </td>
-        </tr>
+    <div class="scan-info">
+        <b>Scanning: <?php echo htmlspecialchars($target); ?></b><br>
+        Recursive: <?php echo ($recursive ? "Yes (termasuk subfolder)" : "No (hanya folder ini)"); ?> | 
+        Extension: <?php echo strtoupper($ext_filter); ?>
+    </div>
     <?php
-    // Scan dulu untuk mendapatkan daftar owner
+    
+    // Scan file
     $fileList = scanFiles($target, $recursive, $ext_filter);
+    
+    // HITUNG STATISTIK FILE (untuk internal, tidak ditampilkan)
+    $total_files = count($fileList);
+    $large_files = 0;
+    $skipped_large = 0;
+    
+    foreach($fileList as $f) {
+        if(@filesize($f) > 5 * 1024 * 1024) {
+            $large_files++;
+        }
+    }
+    
+    // Hitung unique owners
     $unique_owners = getUniqueOwners($fileList, $selected_functions, $custom_keyword);
+    
+    // KUMPULKAN SEMUA TYPE YANG AKAN MUNCUL DI FILTER
+    $unique_types = array();
+    if(!empty($selected_functions)) {
+        foreach($selected_functions as $func) {
+            $unique_types[] = $func;
+        }
+    }
+    if(!empty($custom_keyword)) {
+        $unique_types[] = $custom_keyword;
+    }
+    // Type default selalu ada
+    $default_types = array('c 9 9', 'r 5 7', 'hidden shell');
+    $unique_types = array_merge($default_types, $unique_types);
+    $unique_types = array_unique($unique_types);
+    sort($unique_types);
     ?>
+    
     <div class="filter-box">
         <div class="filter-item">
             <b>Filter Type:</b>
             <select id="type_filter" onchange="filterTable()">
                 <option value="all">Semua Type</option>
-                <option value="c 9 9">c 9 9</option>
-                <option value="r 5 7">r 5 7</option>
-                <option value="hidden shell">hidden shell</option>
                 <?php 
-                if(!empty($selected_functions)) {
-                    foreach($selected_functions as $func) {
-                        echo "<option value=\"$func\">$func</option>";
-                    }
-                }
-                if(!empty($custom_keyword)) {
-                    echo "<option value=\"$custom_keyword\">$custom_keyword</option>";
+                foreach($unique_types as $type) {
+                    echo "<option value=\"$type\">$type</option>";
                 }
                 ?>
             </select>
@@ -630,11 +689,11 @@ if(isset($_REQUEST['edit']) && $_REQUEST['edit'] == 'file') {
             <td align="center" width="60"><b>S i z e</b></td>
         </tr>
 
-
     <?php
     
     $i = 0;
     $file_count = 0;
+    $max_file_size = 5 * 1024 * 1024; // 5MB limit
     
     if(is_array($fileList) && count($fileList) > 0) {
         foreach($fileList as $file) {
@@ -645,131 +704,130 @@ if(isset($_REQUEST['edit']) && $_REQUEST['edit'] == 'file') {
                 continue;
             }
             
-            // CEK APAKAH FILE MASIH ADA
             if(!file_exists($file)) {
                 continue;
             }
             
             if(connection_aborted()) break;
             
-            $ops = @file_get_contents($file);
+            // CEK UKURAN FILE - LEWATKAN YANG TERLALU BESAR
+            $size = @filesize($file);
+            if($size > $max_file_size) {
+                $skipped_large++;
+                continue;
+            }
+            
+            // CEK ISI FILE DENGAN MEMORY EFFICIENT
+            $handle = @fopen($file, 'r');
+            if($handle) {
+                // Baca 100KB pertama saja untuk efisiensi
+                $ops = @fread($handle, 100 * 1024);
+                @fclose($handle);
+            } else {
+                continue;
+            }
+            
             if($ops !== false) {
                 $op = strtolower($ops);
-                $arr = array('c99_buff_prepare' => 'c 9 9', 'abcr57' => 'r 5 7');
-                $sis = 0;
-                $size = @filesize($file);
-                $last_modified = @filemtime($file);
-                $last = $last_modified ? date("M-d-Y H:i", $last_modified) : "Unknown";
                 
-                // Dapatkan permission dan owner
-                $perms = getFilePermissions($file);
-                $perms_numeric = substr(sprintf('%o', fileperms($file)), -4);
-                $owner = getFileOwner($file);
-                $perm_class = getPermissionClass($perms_numeric);
+                // CEK APAKAH MENCURIGAKAN
+                $is_suspicious = false;
+                $type = '';
                 
-                // Check for known backdoors
-                foreach($arr as $key => $val) {
-                    if(@preg_match("/" . preg_quote($key, '/') . "/", $op)) {
-                        $sis = 1;
-                        $i++;
-                        ?>
-                        <tr style="background-color: transparent;" onmouseover="this.style.backgroundColor='#444444'" onmouseout="this.style.backgroundColor='transparent'">
-                            <td align="center"><font color="red"><blink><?php echo $i; ?></blink></font></td>
-                            <td align="center"><font color="red"><blink><?php echo $val; ?></blink></font></td>
-                            <td align="left"><blink>
-                            <a href="#" class="abunai" onclick="MM_openBrWindow('?edit=file&file=<?php echo urlencode($file); ?>&bug=<?php echo urlencode($val); ?>','File view','status=yes,scrollbars=yes,width=700,height=600')" rel="nofollow"><?php echo htmlspecialchars($file); ?></a>
-                            </blink></td>
-                            <td align="center"><span class="permission <?php echo $perm_class; ?>"><?php echo $perms; ?><br><?php echo $perms_numeric; ?></span></td>
-                            <td align="center"><font color="red"><?php echo htmlspecialchars($owner); ?></font></td>
-                            <td align="center"><font color="red"><blink><?php echo $last; ?> GMT+9</blink></font></td>
-                            <td align="center"><font color="red"><blink><?php echo $size; ?> byte</blink></font></td>
-                        </tr>
-                        <?php
-                    }
+                // Cek backdoor umum
+                if(strpos($op, 'c99_buff_prepare') !== false) {
+                    $is_suspicious = true;
+                    $type = 'c 9 9';
+                } elseif(strpos($op, 'abcr57') !== false) {
+                    $is_suspicious = true;
+                    $type = 'r 5 7';
                 }
-                
-                // Check for hidden shell
-                if($sis != 1) {
-                    if(@preg_match("/system\((.*?)\)/", $op) && @preg_match("/<pre>/", $op) && @preg_match("/empty\((.*?)\)/", $op)) {
-                        $sis = 2;
-                        $i++;
-                        $val = "hidden shell";
-                        ?>
-                        <tr style="background-color: transparent;" onmouseover="this.style.backgroundColor='#444444'" onmouseout="this.style.backgroundColor='transparent'">
-                            <td align="center"><font color="blue"><?php echo $i; ?></font></td>
-                            <td align="center"><font color="blue"><?php echo $val; ?></font></td>
-                            <td align="left">
-                            <a href="#" class="xxx" onclick="MM_openBrWindow('?edit=file&file=<?php echo urlencode($file); ?>&bug=<?php echo urlencode($val); ?>','File view','status=yes,scrollbars=yes,width=700,height=600')" rel="nofollow"><?php echo htmlspecialchars($file); ?></a>
-                            </td>
-                            <td align="center"><span class="permission <?php echo $perm_class; ?>"><?php echo $perms; ?><br><?php echo $perms_numeric; ?></span></td>
-                            <td align="center"><font color="blue"><?php echo htmlspecialchars($owner); ?></font></td>
-                            <td align="center"><font color="blue"><?php echo $last; ?> GMT+9</font></td>
-                            <td align="center"><font color="blue"><?php echo $size; ?> byte</font></td>
-                        </tr>
-                        <?php
-                    }
+                // Cek hidden shell
+                elseif(strpos($op, 'system') !== false && strpos($op, '<pre>') !== false) {
+                    $is_suspicious = true;
+                    $type = 'hidden shell';
                 }
-                
-                // Check for user selected functions
-                if($sis == 0 && !empty($selected_functions)) {
-                    foreach($selected_functions as $bugs) {
-                        if(!empty($bugs) && @preg_match("/" . preg_quote($bugs, '/') . "\((.*?)\)/", $op)) {
-                            $i++;
-                            ?>
-                            <tr style="background-color: transparent;" onmouseover="this.style.backgroundColor='#444444'" onmouseout="this.style.backgroundColor='transparent'">
-                                <td align="center"><?php echo $i; ?></td>
-                                <td align="center"><?php echo htmlspecialchars($bugs); ?></td>
-                                <td align="left">
-                                <a href="#" onclick="MM_openBrWindow('?edit=file&file=<?php echo urlencode($file); ?>&bug=<?php echo urlencode($bugs); ?>','File view','status=yes,scrollbars=yes,width=700,height=600')" rel="nofollow"><?php echo htmlspecialchars($file); ?></a>
-                                </td>
-                                <td align="center"><span class="permission <?php echo $perm_class; ?>"><?php echo $perms; ?><br><?php echo $perms_numeric; ?></span></td>
-                                <td align="center"><?php echo htmlspecialchars($owner); ?></td>
-                                <td align="center"><?php echo $last; ?> GMT+9</td>
-                                <td align="center"><?php echo $size; ?> byte</td>
-                            </tr>
-                            <?php
+                // Cek fungsi yang dipilih user
+                elseif(!empty($selected_functions)) {
+                    foreach($selected_functions as $func) {
+                        if(strpos($op, $func . '(') !== false) {
+                            $is_suspicious = true;
+                            $type = $func;
+                            break;
                         }
                     }
                 }
+                // Cek custom keyword
+                elseif(!empty($custom_keyword) && strpos($op, strtolower($custom_keyword)) !== false) {
+                    $is_suspicious = true;
+                    $type = $custom_keyword;
+                }
                 
-                // Check for custom text
-                if($sis == 0 && !empty($custom_keyword)) {
-                    $text = $custom_keyword;
-                    if(@preg_match("/" . preg_quote($text, '/') . "/", $op)) {
-                        $i++;
-                        ?>
-                        <tr style="background-color: transparent;" onmouseover="this.style.backgroundColor='#444444'" onmouseout="this.style.backgroundColor='transparent'">
-                            <td align="center"><?php echo $i; ?></td>
-                            <td align="center"><?php echo htmlspecialchars($text); ?></td>
-                            <td align="left">
-                            <a href="#" onclick="MM_openBrWindow('?edit=file&file=<?php echo urlencode($file); ?>&bug=<?php echo urlencode($text); ?>','File view','status=yes,scrollbars=yes,width=700,height=600')" rel="nofollow"><?php echo htmlspecialchars($file); ?></a>
-                            </td>
-                            <td align="center"><span class="permission <?php echo $perm_class; ?>"><?php echo $perms; ?><br><?php echo $perms_numeric; ?></span></td>
-                            <td align="center"><?php echo htmlspecialchars($owner); ?></td>
-                            <td align="center"><?php echo $last; ?> GMT+9</td>
-                            <td align="center"><?php echo $size; ?> byte</td>
-                        </tr>
-                        <?php
+                if($is_suspicious) {
+                    $i++;
+                    $last_modified = @filemtime($file);
+                    $last = $last_modified ? date("M-d-Y H:i", $last_modified) : "Unknown";
+                    $perms = getFilePermissions($file);
+                    $perms_numeric = substr(sprintf('%o', fileperms($file)), -4);
+                    $owner = getFileOwner($file);
+                    $perm_class = getPermissionClass($perms_numeric);
+                    
+                    // Tentukan warna berdasarkan tipe
+                    $color = '#47b2e4';
+                    if($type == 'c 9 9' || $type == 'r 5 7') {
+                        $color = 'red';
+                    } elseif($type == 'hidden shell') {
+                        $color = 'blue';
                     }
+                    ?>
+                    <tr style="background-color: transparent;" onmouseover="this.style.backgroundColor='#444444'" onmouseout="this.style.backgroundColor='transparent'">
+                        <td align="center"><font color="<?php echo $color; ?>"><?php echo $i; ?></font></td>
+                        <td align="center"><font color="<?php echo $color; ?>"><?php echo htmlspecialchars($type); ?></font></td>
+                        <td align="left">
+                            <a href="#" style="color: <?php echo $color; ?>;" onclick="MM_openBrWindow('?edit=file&file=<?php echo urlencode($file); ?>&bug=<?php echo urlencode($type); ?>','File view','status=yes,scrollbars=yes,width=700,height=600')"><?php echo htmlspecialchars($file); ?></a>
+                        </td>
+                        <td align="center"><span class="permission <?php echo $perm_class; ?>"><?php echo $perms; ?><br><?php echo $perms_numeric; ?></span></td>
+                        <td align="center"><font color="<?php echo $color; ?>"><?php echo htmlspecialchars($owner); ?></font></td>
+                        <td align="center"><font color="<?php echo $color; ?>"><?php echo $last; ?> GMT+9</font></td>
+                        <td align="center"><font color="<?php echo $color; ?>"><?php echo $size; ?> byte</font></td>
+                    </tr>
+                    <?php
                 }
             }
             
-            ob_flush();
-            flush();
+            // Flush output setiap 100 file
+            if($file_count % 100 == 0) {
+                ob_flush();
+                flush();
+            }
         }
     }
     
-    echo "<tr><td colspan='7' align='center' class='me'>Total files scanned: $file_count | Suspicious files found: $i</td></tr>";
-    
+    // Tampilkan pesan jika tidak ada file
+    $scanned_files = $file_count - $skipped_large;
     if($i == 0) {
-        echo "<tr><td colspan='7' align='center' class='me'>Tidak ditemukan file mencurigakan</td></tr>";
+        echo "<tr><td colspan='7' align='center' style='padding: 30px; color: #ffaa00;'><b>📭 TIDAK DITEMUKAN FILE MENCURIGAKAN</b><br><br>";
+        echo "Total file di-scan: <b>" . number_format($scanned_files) . "</b> file<br>";
+        if($skipped_large > 0) {
+            echo "File >5MB yang dilewati: <b>" . number_format($skipped_large) . "</b> file (untuk mencegah memory exhaustion)<br>";
+        }
+        if($scanned_files == 0) {
+            echo "<br><span style='color: #ff6b6b;'>⚠️ TIDAK ADA FILE YANG DI-SCAN!</span><br>";
+            echo "Kemungkinan penyebab:<br>";
+            echo "- Semua file berukuran >5MB<br>";
+            echo "- Filter ekstensi terlalu ketat<br>";
+            echo "- Tidak ada file dengan ekstensi yang dipilih";
+        }
+        echo "</td></tr>";
     }
+    
+    echo "<tr><td colspan='7' align='center' class='me'><b>Total files scanned: " . number_format($scanned_files) . " | Suspicious files found: $i | Skipped (large files): " . number_format($skipped_large) . "</b></td></tr>";
     ?>
     </table>
     
     <br>
     <form method="post" action="">
-        <input type="submit" value=" « Back to Scanner ">
+        <input type="submit" value=" « Back to Scanner " class="button">
     </form>
     <?php
 } else {
